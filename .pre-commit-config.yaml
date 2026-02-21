@@ -23,7 +23,9 @@ repos:
       - id: hadolint
         args:
           - --failure-threshold=warning
-          # DL3018: pin apk packages — acceptable for base images
+          # DL3008: pin apt packages  — acceptable for base images
+          # DL3018: pin apk packages  — acceptable for base images
+          - --ignore=DL3008
           - --ignore=DL3018
 
   # ── YAML linting ─────────────────────────────────────────────────────────

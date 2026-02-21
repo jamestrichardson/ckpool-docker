@@ -1,17 +1,18 @@
 # syntax=docker/dockerfile:1
 
 # Build stage - compile ckpool from source
-FROM alpine:3.21 AS builder
+FROM debian:bookworm-slim AS builder
 
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     autoconf \
     automake \
-    build-base \
+    build-essential \
+    ca-certificates \
     git \
-    libcap \
     libcap-dev \
     libtool \
-    pkgconf
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN git clone https://github.com/jamestrichardson/ckpool.git /tmp/ckpool
 
@@ -23,22 +24,23 @@ RUN ./autogen.sh && \
     make install
 
 # Runtime stage
-FROM alpine:3.21
+FROM debian:bookworm-slim
 
 ARG S6_OVERLAY_VERSION="3.2.1.0"
 
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
-    libcap \
+    libcap2 \
     tzdata \
-    xz && \
-    ARCH=$(uname -m) && \
-    wget -q "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz" -O /tmp/s6-overlay-noarch.tar.xz && \
-    tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && \
-    wget -q "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${ARCH}.tar.xz" -O /tmp/s6-overlay-arch.tar.xz && \
-    tar -C / -Jxpf /tmp/s6-overlay-arch.tar.xz && \
-    rm -rf /tmp/*.tar.xz && \
-    apk del xz
+    wget \
+    xz-utils \
+    && rm -rf /var/lib/apt/lists/* \
+    && ARCH=$(uname -m) \
+    && wget -q "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz" -O /tmp/s6-overlay-noarch.tar.xz \
+    && tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz \
+    && wget -q "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${ARCH}.tar.xz" -O /tmp/s6-overlay-arch.tar.xz \
+    && tar -C / -Jxpf /tmp/s6-overlay-arch.tar.xz \
+    && rm -rf /tmp/*.tar.xz
 
 COPY --from=builder /app/bin/ckpool /app/bin/ckpool
 COPY --from=builder /app/bin/ckpmsg /app/bin/ckpmsg
