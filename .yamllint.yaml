@@ -1,0 +1,17 @@
+---
+extends: default
+
+rules:
+  # GitHub Actions workflows use long lines; allow up to 150
+  line-length:
+    max: 150
+    level: warning
+
+  # Allow both true/false and on/off (GitHub Actions uses "on:")
+  truthy:
+    allowed-values: ["true", "false", "on", "off", "yes", "no"]
+    check-keys: false
+
+  # Require exactly one newline at end of file (handled by pre-commit-hooks too)
+  document-start:
+    present: false
