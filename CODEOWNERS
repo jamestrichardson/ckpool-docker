@@ -1,0 +1,4 @@
+# CODEOWNERS
+# All files are owned by the Richardson-Admins team.
+# Note: To *require* approvals you'll also need a branch protection rule.
+* @Richardson-Admins
