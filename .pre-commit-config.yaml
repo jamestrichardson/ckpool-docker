@@ -1,4 +1,39 @@
 repos:
+  # ── Standard file hygiene ────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-yaml
+        args: [--unsafe]   # allows custom YAML tags used by some GitHub Actions
+      - id: check-json
+      - id: pretty-format-json
+        args: [--autofix, --indent=2, --no-sort-keys]
+
+  # ── Dockerfile linting ───────────────────────────────────────────────────
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.13.1-beta
+    hooks:
+      - id: hadolint
+        args:
+          - --failure-threshold=warning
+          # DL3018: pin apk packages — acceptable for base images
+          - --ignore=DL3018
+
+  # ── YAML linting ─────────────────────────────────────────────────────────
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args: [-c=.yamllint.yaml]
+
+  # ── Conventional commit messages ─────────────────────────────────────────
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.6.0
     hooks:
