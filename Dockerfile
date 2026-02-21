@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     git \
     libcap-dev \
+    libcap2-bin \
     libtool \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
