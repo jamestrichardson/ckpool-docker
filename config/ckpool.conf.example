@@ -1,0 +1,81 @@
+{
+  "btcd": [{
+    "url": "bitcoind:8332",
+    "auth": "rpcuser",
+    "pass": "rpcpassword"
+  }],
+
+  "btcaddress": "32coLSLp3xNAajDZtxvPim5XahrxWRGBAy",
+
+  "btcsig": "/FamilyPool/",
+
+  "serverurl": ["0.0.0.0:3333"],
+
+  "mindiff": 256,
+
+  "startdiff": 256,
+
+  "maxdiff": 0,
+
+  "logdir": "/config/logs",
+
+  "dropidle": 3600,
+
+  "update_interval": 30,
+
+  "donation": 0
+}
+
+Configuration notes
+-------------------
+
+btcd
+  The connection details for your Bitcoin Core node.
+  "url" is host:port. If ckpool and bitcoind are in the same Docker Compose
+  stack, use the service name as the hostname (e.g. "bitcoind:8332").
+  If bitcoind is on the host machine, use the Docker bridge IP (typically
+  172.17.0.1) or --network host.
+
+btcaddress
+  The Bitcoin address that receives the block reward when your pool finds a
+  block. This is YOUR wallet address - all friends and family share the reward
+  because they are contributing hashrate to a single pool account.
+  Set to your address: 32coLSLp3xNAajDZtxvPim5XahrxWRGBAy
+
+btcsig
+  An optional string embedded in the coinbase transaction of any block your
+  pool mines. Limited to a short ASCII string. Shows up on block explorers
+  as a vanity tag identifying your pool.
+
+serverurl
+  The address and port miners connect to. "0.0.0.0:3333" binds to all
+  interfaces. Tell your friends/family to point their miners to:
+    stratum+tcp://<your-server-ip>:3333
+  Username and password can be anything (e.g. worker1 / x).
+
+mindiff / startdiff / maxdiff
+  Difficulty controls for vardiff (variable difficulty).
+  - mindiff: lowest difficulty a miner can be assigned. 256 suits most modern
+    ASIC and GPU miners. Lower it (e.g. 64) if anyone is using weak hardware.
+  - startdiff: difficulty new miners start at before vardiff adjusts them.
+    Match this to mindiff for fast initial adjustment.
+  - maxdiff: cap the maximum difficulty. 0 means no cap (recommended).
+  Vardiff will automatically tune each miner's difficulty to target roughly
+  one share every few seconds regardless of their hashrate.
+
+logdir
+  Directory where pool logs are written. /config/logs means logs appear in
+  your bind-mounted config directory on the host.
+
+dropidle
+  Disconnects miners that have submitted no shares for this many seconds.
+  3600 = 1 hour. Set to 0 to disable.
+
+update_interval
+  How often (in seconds) the pool sends new work to miners. 30 seconds is
+  the default and is fine for a private pool.
+
+donation
+  Percentage of block rewards donated to the ckpool developer (Con Kolivas).
+  The pool software also has a hardcoded 0.5% developer contribution built in.
+  Setting this to 0 disables the optional additional donation.
