@@ -1,14 +1,19 @@
 services:
   bitcoind:
-    image: kylemanna/bitcoind:latest
+    image: lncm/bitcoind:v27.0
     container_name: bitcoind
     restart: unless-stopped
     env_file: .env
     environment:
-      BITCOIN_RPC_USER: ${BTC_RPC_USER}
-      BITCOIN_RPC_PASSWORD: ${BTC_RPC_PASS}
+      # lncm/bitcoind uses these specific env vars
+      - BITCOIN_RPC_USER=${BTC_RPC_USER}
+      - BITCOIN_RPC_PASSWORD=${BTC_RPC_PASS}
+    command:
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+      - -txindex=1
     volumes:
-      - ${BITCOIND_DATA_PATH:-/srv/bitcoin}:/bitcoin
+      - ${BITCOIND_DATA_PATH:-/srv/bitcoin}:/data/.bitcoin
     ports:
       - "8332:8332"
       - "8333:8333"
