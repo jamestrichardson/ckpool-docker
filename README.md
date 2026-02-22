@@ -44,7 +44,7 @@ Refer to the [ckpool README](https://github.com/jamestrichardson/ckpool/blob/mas
 ```json
 {
   "btcd": [{
-    "url": "127.0.0.1:8332",
+    "url": "bitcoind-host:8332",
     "auth": "rpcuser",
     "pass": "rpcpassword"
   }],
@@ -57,6 +57,64 @@ Refer to the [ckpool README](https://github.com/jamestrichardson/ckpool/blob/mas
   "logdir": "/config/logs"
 }
 ```
+
+> **Note:** `127.0.0.1` inside the container refers to the container itself, not your host machine.
+> See [Connecting to Bitcoin Core](#connecting-to-bitcoin-core) below for how to set the correct address.
+
+### Connecting to Bitcoin Core
+
+ckpool needs to reach a Bitcoin Core node via RPC. How you reference it in `btcd.url` depends on where Bitcoin Core is running:
+
+#### Bitcoin Core on the host machine
+
+Use `host.docker.internal` (Docker Desktop on macOS/Windows) or the Docker bridge IP (Linux):
+
+```bash
+# Linux: find the host's docker0 bridge IP
+ip -4 addr show docker0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'
+# typically 172.17.0.1
+```
+
+```json
+"btcd": [{ "url": "172.17.0.1:8332", "auth": "rpcuser", "pass": "rpcpassword" }]
+```
+
+Or use `--network host` so the container shares the host network stack, allowing `127.0.0.1`:
+
+```bash
+docker run -d \
+  --name ckpool \
+  --network host \
+  -v /srv/ckpool/config:/config \
+  ghcr.io/jamestrichardson/ckpool-docker:latest
+```
+
+> With `--network host`, `-p` flags are not used — ports are bound directly on the host.
+
+#### Bitcoin Core in another Docker container
+
+Put both containers on the same user-defined network and reference Bitcoin Core by its container name:
+
+```bash
+docker network create bitcoin-net
+
+docker run -d --name bitcoind --network bitcoin-net <bitcoind-image>
+
+docker run -d \
+  --name ckpool \
+  --network bitcoin-net \
+  -v /srv/ckpool/config:/config \
+  -p 3333:3333 \
+  ghcr.io/jamestrichardson/ckpool-docker:latest
+```
+
+```json
+"btcd": [{ "url": "bitcoind:8332", "auth": "rpcuser", "pass": "rpcpassword" }]
+```
+
+#### Bitcoin Core via Docker Compose (recommended)
+
+See the [Docker Compose](#docker-compose) section below for a complete example.
 
 ## Volumes
 
@@ -126,6 +184,8 @@ docker run -d \
 
 ## Docker Compose
 
+### ckpool only (Bitcoin Core running elsewhere)
+
 ```yaml
 services:
   ckpool:
@@ -137,6 +197,41 @@ services:
     ports:
       - "3333:3333"
 ```
+
+Set `btcd.url` in your config to the reachable address of Bitcoin Core (see [Connecting to Bitcoin Core](#connecting-to-bitcoin-core)).
+
+### ckpool + Bitcoin Core together
+
+```yaml
+services:
+  bitcoind:
+    image: lncm/bitcoind:v27.0
+    container_name: bitcoind
+    restart: unless-stopped
+    volumes:
+      - bitcoind-data:/data/.bitcoin
+    command:
+      - -rpcuser=rpcuser
+      - -rpcpassword=rpcpassword
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+
+  ckpool:
+    image: ghcr.io/jamestrichardson/ckpool-docker:latest
+    container_name: ckpool
+    restart: unless-stopped
+    depends_on:
+      - bitcoind
+    volumes:
+      - /srv/ckpool/config:/config
+    ports:
+      - "3333:3333"
+
+volumes:
+  bitcoind-data:
+```
+
+With this setup, use `"url": "bitcoind:8332"` in your `ckpool.conf` — Compose places both services on a shared network and the `bitcoind` hostname resolves automatically.
 
 ## Logs
 
