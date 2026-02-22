@@ -3,12 +3,9 @@ services:
     image: lncm/bitcoind:v27.0
     container_name: bitcoind
     restart: unless-stopped
-    env_file: .env
-    environment:
-      # lncm/bitcoind uses these specific env vars
-      - BITCOIN_RPC_USER=${BTC_RPC_USER}
-      - BITCOIN_RPC_PASSWORD=${BTC_RPC_PASS}
     command:
+      - -rpcuser=${BTC_RPC_USER}
+      - -rpcpassword=${BTC_RPC_PASS}
       - -rpcallowip=0.0.0.0/0
       - -rpcbind=0.0.0.0
       - -txindex=1
@@ -30,7 +27,6 @@ services:
     ports:
       - "3333:3333"
     environment:
-      # These override .env defaults to ensure they work within the compose network
       BTC_RPC_URL: bitcoind:8332
       BTC_RPC_USER: ${BTC_RPC_USER}
       BTC_RPC_PASS: ${BTC_RPC_PASS}
