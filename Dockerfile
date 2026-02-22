@@ -37,7 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libcap2 \
     tzdata \
-    wget \
+    curl \
     xz-utils \
     && rm -rf /var/lib/apt/lists/* \
     && case "${TARGETARCH}" in \
@@ -47,20 +47,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
          386)     S6_ARCH="i486"    ;; \
          *)       S6_ARCH="${TARGETARCH}" ;; \
        esac \
-    && wget -q --fail "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz" \
-            -O /tmp/s6-overlay-noarch.tar.xz \
-    && wget -q --fail "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_ARCH}.tar.xz" \
-            -O /tmp/s6-overlay-${S6_ARCH}.tar.xz \
-    && wget -q --fail "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-symlinks-noarch.tar.xz" \
-            -O /tmp/s6-overlay-symlinks-noarch.tar.xz \
-    && wget -q --fail "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-symlinks-arch.tar.xz" \
-            -O /tmp/s6-overlay-symlinks-arch.tar.xz \
+    && echo "==> TARGETARCH=${TARGETARCH} S6_ARCH=${S6_ARCH} S6_OVERLAY_VERSION=${S6_OVERLAY_VERSION}" \
+    && curl -fsSL "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz" \
+            -o /tmp/s6-overlay-noarch.tar.xz \
+    && curl -fsSL "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_ARCH}.tar.xz" \
+            -o /tmp/s6-overlay-${S6_ARCH}.tar.xz \
+    && curl -fsSL "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-symlinks-noarch.tar.xz" \
+            -o /tmp/s6-overlay-symlinks-noarch.tar.xz \
+    && curl -fsSL "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-symlinks-arch.tar.xz" \
+            -o /tmp/s6-overlay-symlinks-arch.tar.xz \
+    && echo "==> Extracting s6-overlay tarballs" \
     && tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz \
     && tar -C / -Jxpf /tmp/s6-overlay-${S6_ARCH}.tar.xz \
     && tar -C / -Jxpf /tmp/s6-overlay-symlinks-noarch.tar.xz \
     && tar -C / -Jxpf /tmp/s6-overlay-symlinks-arch.tar.xz \
     && rm -rf /tmp/s6-overlay-*.tar.xz \
-    && apt-get purge -y --auto-remove wget xz-utils \
+    && apt-get purge -y --auto-remove curl xz-utils \
     && test -x /command/with-contenv  || { echo "ERROR: s6-overlay noarch not installed correctly"; exit 1; } \
     && test -x /command/s6-supervise  || { echo "ERROR: s6-overlay arch not installed correctly"; exit 1; } \
     && test -L /usr/bin/with-contenv  || { echo "ERROR: s6-overlay symlinks not installed correctly"; exit 1; }
