@@ -10,7 +10,7 @@ The image is automatically built and published to the [GitHub Container Registry
 
 ### Quick start
 
-The easiest way to get started is by using the provided `run.sh` script.
+The easiest way to get started is by using the provided `docker-compose.yml` and `run.sh` script.
 
 ```bash
 # 1. Clone the repo
@@ -23,9 +23,11 @@ cp .env.example .env
 # 3. Edit .env (set your BTC address and Bitcoin Core RPC details)
 ${EDITOR:-nano} .env
 
-# 4. Start the container (optionally pull the latest version)
+# 4. Start both bitcoind and ckpool
 ./run.sh --pull
 ```
+
+> **Note:** The `run.sh` script is just a wrapper around `docker compose up -d`. You can use standard `docker compose` commands if you prefer.
 
 > If you're on **BTCSOLO** (default), miners set their **username to their own Bitcoin address**. When a block is found their reward goes directly to their wallet — no manual splitting needed.
 
@@ -75,60 +77,16 @@ For advanced users who need options not exposed as env vars, the bundled [exampl
 > **Note:** `127.0.0.1` in `BTC_RPC_URL` refers to the container itself, not your host.
 > See [Connecting to Bitcoin Core](#connecting-to-bitcoin-core) below for how to reach bitcoind.
 
-### Connecting to Bitcoin Core
+### Docker Compose (Recommended)
 
-ckpool needs to reach a Bitcoin Core node via RPC. How you reference it in `btcd.url` depends on where Bitcoin Core is running:
-
-#### Bitcoin Core on the host machine
-
-Use `host.docker.internal` (Docker Desktop on macOS/Windows) or the Docker bridge IP (Linux):
+The included `docker-compose.yml` launches both `bitcoind` (using [kylemanna/bitcoind](https://hub.docker.com/r/kylemanna/bitcoind/)) and `ckpool`. This is the easiest way to ensure they can talk to each other.
 
 ```bash
-# Linux: find the host's docker0 bridge IP
-ip -4 addr show docker0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'
-# typically 172.17.0.1
+# Manage both together
+./run.sh --pull    # start
+./run.sh --logs    # view logs
+./run.sh --stop    # shut down
 ```
-
-```json
-"btcd": [{ "url": "172.17.0.1:8332", "auth": "rpcuser", "pass": "rpcpassword" }]
-```
-
-Or use `--network host` so the container shares the host network stack, allowing `127.0.0.1`:
-
-```bash
-docker run -d \
-  --name ckpool \
-  --network host \
-  -v /srv/ckpool/config:/config \
-  ghcr.io/jamestrichardson/ckpool-docker:latest
-```
-
-> With `--network host`, `-p` flags are not used — ports are bound directly on the host.
-
-#### Bitcoin Core in another Docker container
-
-Put both containers on the same user-defined network and reference Bitcoin Core by its container name:
-
-```bash
-docker network create bitcoin-net
-
-docker run -d --name bitcoind --network bitcoin-net <bitcoind-image>
-
-docker run -d \
-  --name ckpool \
-  --network bitcoin-net \
-  -v /srv/ckpool/config:/config \
-  -p 3333:3333 \
-  ghcr.io/jamestrichardson/ckpool-docker:latest
-```
-
-```json
-"btcd": [{ "url": "bitcoind:8332", "auth": "rpcuser", "pass": "rpcpassword" }]
-```
-
-#### Bitcoin Core via Docker Compose (recommended)
-
-See the [Docker Compose](#docker-compose) section below for a complete example.
 
 ## Volumes
 
@@ -136,36 +94,14 @@ See the [Docker Compose](#docker-compose) section below for a complete example.
 |---|---|
 | `/config` | Required. Contains `ckpool.conf` and runtime-generated logs/state. |
 
-### Mounting the config directory
+### Configuring persistence
 
-Bind-mount a host directory so logs persist across container restarts:
+The `docker-compose.yml` uses the `BITCOIND_DATA_PATH` and `CONFIG_PATH` variables from your `.env` file to mount host directories:
 
-```bash
-mkdir -p /srv/ckpool/config
-
-docker run -d \
-  --name ckpool \
-  -v /srv/ckpool/config:/config \
-  -p 3333:3333 \
-  -e BTC_RPC_URL=172.17.0.1:8332 \
-  -e BTC_RPC_USER=rpcuser \
-  -e BTC_RPC_PASS=rpcpassword \
-  ghcr.io/jamestrichardson/ckpool-docker:latest
-```
-
-### Using a named volume
-
-```bash
-docker volume create ckpool-config
-
-docker run -d \
-  --name ckpool \
-  -v ckpool-config:/config \
-  -p 3333:3333 \
-  -e BTC_RPC_URL=172.17.0.1:8332 \
-  -e BTC_RPC_USER=rpcuser \
-  -e BTC_RPC_PASS=rpcpassword \
-  ghcr.io/jamestrichardson/ckpool-docker:latest
+```dotenv
+# .env examples
+BITCOIND_DATA_PATH=/mnt/storage/bitcoin
+CONFIG_PATH=/srv/ckpool/config
 ```
 
 ## Ports
@@ -184,67 +120,6 @@ docker run -d \
   -p 3334:3334 \
   ghcr.io/jamestrichardson/ckpool-docker:latest
 ```
-
-## Docker Compose
-
-### ckpool only (Bitcoin Core running elsewhere)
-
-```yaml
-services:
-  ckpool:
-    image: ghcr.io/jamestrichardson/ckpool-docker:latest
-    container_name: ckpool
-    restart: unless-stopped
-    volumes:
-      - /srv/ckpool/config:/config
-    ports:
-      - "3333:3333"
-    environment:
-      - BTCSOLO=true
-      - BTC_RPC_URL=172.17.0.1:8332
-      - BTC_RPC_USER=rpcuser
-      - BTC_RPC_PASS=rpcpassword
-      - POOL_SIG=/FamilyPool/
-```
-
-### ckpool + Bitcoin Core together
-
-```yaml
-services:
-  bitcoind:
-    image: lncm/bitcoind:v27.0
-    container_name: bitcoind
-    restart: unless-stopped
-    volumes:
-      - bitcoind-data:/data/.bitcoin
-    command:
-      - -rpcuser=rpcuser
-      - -rpcpassword=rpcpassword
-      - -rpcallowip=0.0.0.0/0
-      - -rpcbind=0.0.0.0
-
-  ckpool:
-    image: ghcr.io/jamestrichardson/ckpool-docker:latest
-    container_name: ckpool
-    restart: unless-stopped
-    depends_on:
-      - bitcoind
-    volumes:
-      - /srv/ckpool/config:/config
-    ports:
-      - "3333:3333"
-    environment:
-      - BTCSOLO=true
-      - BTC_RPC_URL=bitcoind:8332
-      - BTC_RPC_USER=rpcuser
-      - BTC_RPC_PASS=rpcpassword
-      - POOL_SIG=/FamilyPool/
-
-volumes:
-  bitcoind-data:
-```
-
-Compose places both services on a shared network so `bitcoind` resolves as a hostname automatically.
 
 ## Logs
 

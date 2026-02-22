@@ -14,7 +14,7 @@ MAX_DIFF="${MAX_DIFF:-0}"
 LOG_DIR="${LOG_DIR:-/config/logs}"
 DROP_IDLE="${DROP_IDLE:-3600}"
 UPDATE_INTERVAL="${UPDATE_INTERVAL:-30}"
-DONATION="${DONATION:-0}"
+DONATION="${DONATION:-0.0}"
 
 # ── Validate ──────────────────────────────────────────────────────────────────
 if [ "${BTCSOLO}" != "true" ] && [ -z "${BTC_ADDRESS}" ]; then
@@ -31,6 +31,11 @@ mkdir -p "${LOG_DIR}"
 
 # ── Generate config on every start ───────────────────────────────────────────
 CONFIG_FILE="/config/ckpool.conf"
+
+# Ensure DONATION is a double (ckpool parser is strict)
+if [[ ! "${DONATION}" =~ \. ]]; then
+    DONATION="${DONATION}.0"
+fi
 
 cat > "${CONFIG_FILE}" <<CKCONF
 {
