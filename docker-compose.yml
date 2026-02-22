@@ -4,6 +4,9 @@ services:
     container_name: bitcoind
     restart: unless-stopped
     env_file: .env
+    environment:
+      BITCOIN_RPC_USER: ${BTC_RPC_USER}
+      BITCOIN_RPC_PASSWORD: ${BTC_RPC_PASS}
     volumes:
       - ${BITCOIND_DATA_PATH:-/srv/bitcoin}:/bitcoin
     ports:
