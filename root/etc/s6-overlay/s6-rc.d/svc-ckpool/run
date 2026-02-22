@@ -1,3 +1,73 @@
 #!/usr/bin/with-contenv bash
 
-exec /app/bin/ckpool -c /config/ckpool.conf
+# ── Defaults (override any of these with -e VAR=value at docker run) ──────────
+BTCSOLO="${BTCSOLO:-true}"
+BTC_ADDRESS="${BTC_ADDRESS:-}"
+BTC_RPC_URL="${BTC_RPC_URL:-bitcoind:8332}"
+BTC_RPC_USER="${BTC_RPC_USER:-rpcuser}"
+BTC_RPC_PASS="${BTC_RPC_PASS:-rpcpassword}"
+POOL_SIG="${POOL_SIG:-/ckpool/}"
+SERVER_URL="${SERVER_URL:-0.0.0.0:3333}"
+MIN_DIFF="${MIN_DIFF:-256}"
+START_DIFF="${START_DIFF:-256}"
+MAX_DIFF="${MAX_DIFF:-0}"
+LOG_DIR="${LOG_DIR:-/config/logs}"
+DROP_IDLE="${DROP_IDLE:-3600}"
+UPDATE_INTERVAL="${UPDATE_INTERVAL:-30}"
+DONATION="${DONATION:-0}"
+
+# ── Validate ──────────────────────────────────────────────────────────────────
+if [ "${BTCSOLO}" != "true" ] && [ -z "${BTC_ADDRESS}" ]; then
+    echo "ERROR: BTC_ADDRESS must be set when BTCSOLO=false"
+    echo "  Pool mode pays all rewards to a single address:"
+    echo "    -e BTC_ADDRESS=<your-bitcoin-address>"
+    echo "  Or enable BTCSOLO mode (each miner receives their own rewards):"
+    echo "    -e BTCSOLO=true"
+    sleep infinity
+fi
+
+# ── Prepare directories ───────────────────────────────────────────────────────
+mkdir -p "${LOG_DIR}"
+
+# ── Generate config on every start ───────────────────────────────────────────
+CONFIG_FILE="/config/ckpool.conf"
+
+cat > "${CONFIG_FILE}" <<CKCONF
+{
+  "btcd": [{
+    "url": "${BTC_RPC_URL}",
+    "auth": "${BTC_RPC_USER}",
+    "pass": "${BTC_RPC_PASS}"
+  }],
+  "btcaddress": "${BTC_ADDRESS}",
+  "btcsig": "${POOL_SIG}",
+  "serverurl": ["${SERVER_URL}"],
+  "mindiff": ${MIN_DIFF},
+  "startdiff": ${START_DIFF},
+  "maxdiff": ${MAX_DIFF},
+  "logdir": "${LOG_DIR}",
+  "dropidle": ${DROP_IDLE},
+  "update_interval": ${UPDATE_INTERVAL},
+  "donation": ${DONATION}
+}
+CKCONF
+
+# ── Log startup summary ───────────────────────────────────────────────────────
+if [ "${BTCSOLO}" = "true" ]; then
+    MODE="BTCSOLO (each miner is paid to their own address)"
+else
+    MODE="Pool (all rewards go to ${BTC_ADDRESS})"
+fi
+
+echo "==> ckpool starting"
+echo "    Mode     : ${MODE}"
+echo "    Bitcoin  : ${BTC_RPC_URL}"
+echo "    Listen   : ${SERVER_URL}"
+echo "    Logs     : ${LOG_DIR}"
+
+# ── Start ckpool ──────────────────────────────────────────────────────────────
+if [ "${BTCSOLO}" = "true" ]; then
+    exec /app/bin/ckpool -B -c "${CONFIG_FILE}"
+else
+    exec /app/bin/ckpool -c "${CONFIG_FILE}"
+fi

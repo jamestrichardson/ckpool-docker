@@ -10,13 +10,27 @@ The image is automatically built and published to the [GitHub Container Registry
 
 ### Quick start
 
+The easiest way to get started is by using the provided `run.sh` script.
+
 ```bash
-docker run -d \
-  --name ckpool \
-  -v /path/to/config:/config \
-  -p 3333:3333 \
-  ghcr.io/jamestrichardson/ckpool-docker:latest
+# 1. Clone the repo
+git clone https://github.com/jamestrichardson/ckpool-docker.git
+cd ckpool-docker
+
+# 2. Configure environment
+cp .env.example .env
+
+# 3. Edit .env (set your BTC address and Bitcoin Core RPC details)
+${EDITOR:-nano} .env
+
+# 4. Start the container (optionally pull the latest version)
+./run.sh --pull
 ```
+
+> If you're on **BTCSOLO** (default), miners set their **username to their own Bitcoin address**. When a block is found their reward goes directly to their wallet — no manual splitting needed.
+
+> If you're using **Pool mode** (`BTCSOLO=false`), all rewards go to the `BTC_ADDRESS` you set in the `.env` file. You split the rewards manually.
+
 
 ### Available tags
 
@@ -35,31 +49,31 @@ docker run -d \
 
 ## Configuration
 
-ckpool is configured entirely through a single JSON config file. Place it at `/config/ckpool.conf` on the host before starting the container.
+The container generates `/config/ckpool.conf` from environment variables on every start. Set variables with `-e` at `docker run` or via the `environment:` key in Docker Compose. Values in `/config/logs` and other runtime output persist across restarts via the mounted `/config` volume.
 
-Refer to the [ckpool README](https://github.com/jamestrichardson/ckpool/blob/master/README) and the [example config](https://github.com/jamestrichardson/ckpool/blob/master/ckpool.conf) for all available options.
+For advanced users who need options not exposed as env vars, the bundled [example config](config/ckpool.conf.example) can be used as a reference.
 
-### Minimum viable config
+### Environment variables
 
-```json
-{
-  "btcd": [{
-    "url": "bitcoind-host:8332",
-    "auth": "rpcuser",
-    "pass": "rpcpassword"
-  }],
-  "btcaddress": "your-bitcoin-address",
-  "btcsig": "",
-  "serverurl": ["0.0.0.0:3333"],
-  "mindiff": 1,
-  "startdiff": 42,
-  "maxdiff": 0,
-  "logdir": "/config/logs"
-}
-```
+| Variable | Default | Description |
+|---|---|---|
+| `BTCSOLO` | `true` | `true` = BTCSOLO mode: each miner's rewards go directly to their own address. `false` = Pool mode: all rewards go to `BTC_ADDRESS`. |
+| `BTC_ADDRESS` | _(empty)_ | Your Bitcoin wallet address. Required when `BTCSOLO=false`. Ignored in BTCSOLO mode. |
+| `BTC_RPC_URL` | `bitcoind:8332` | Host and port of your Bitcoin Core RPC endpoint. |
+| `BTC_RPC_USER` | `rpcuser` | Bitcoin Core RPC username. |
+| `BTC_RPC_PASS` | `rpcpassword` | Bitcoin Core RPC password. |
+| `POOL_SIG` | `/ckpool/` | Vanity string embedded in the coinbase of any block found by your pool. |
+| `SERVER_URL` | `0.0.0.0:3333` | Address and port miners connect to. |
+| `MIN_DIFF` | `256` | Minimum difficulty vardiff will assign. Lower to `64` for weak hardware. |
+| `START_DIFF` | `256` | Starting difficulty for new miners before vardiff adjusts them. |
+| `MAX_DIFF` | `0` | Maximum difficulty cap. `0` means no cap. |
+| `LOG_DIR` | `/config/logs` | Directory inside the container where pool logs are written. |
+| `DROP_IDLE` | `3600` | Drop miners that submit no shares for this many seconds. `0` to disable. |
+| `UPDATE_INTERVAL` | `30` | Seconds between new work updates sent to miners. |
+| `DONATION` | `0` | Optional extra donation percentage to the ckpool developer. |
 
-> **Note:** `127.0.0.1` inside the container refers to the container itself, not your host machine.
-> See [Connecting to Bitcoin Core](#connecting-to-bitcoin-core) below for how to set the correct address.
+> **Note:** `127.0.0.1` in `BTC_RPC_URL` refers to the container itself, not your host.
+> See [Connecting to Bitcoin Core](#connecting-to-bitcoin-core) below for how to reach bitcoind.
 
 ### Connecting to Bitcoin Core
 
@@ -124,26 +138,22 @@ See the [Docker Compose](#docker-compose) section below for a complete example.
 
 ### Mounting the config directory
 
-Bind-mount a host directory so your config and logs persist across container restarts:
+Bind-mount a host directory so logs persist across container restarts:
 
 ```bash
-# Create the config directory on the host
 mkdir -p /srv/ckpool/config
 
-# Copy your config into it
-cp ckpool.conf /srv/ckpool/config/ckpool.conf
-
-# Run the container
 docker run -d \
   --name ckpool \
   -v /srv/ckpool/config:/config \
   -p 3333:3333 \
+  -e BTC_RPC_URL=172.17.0.1:8332 \
+  -e BTC_RPC_USER=rpcuser \
+  -e BTC_RPC_PASS=rpcpassword \
   ghcr.io/jamestrichardson/ckpool-docker:latest
 ```
 
 ### Using a named volume
-
-If you prefer Docker-managed storage instead of a bind mount:
 
 ```bash
 docker volume create ckpool-config
@@ -152,17 +162,10 @@ docker run -d \
   --name ckpool \
   -v ckpool-config:/config \
   -p 3333:3333 \
+  -e BTC_RPC_URL=172.17.0.1:8332 \
+  -e BTC_RPC_USER=rpcuser \
+  -e BTC_RPC_PASS=rpcpassword \
   ghcr.io/jamestrichardson/ckpool-docker:latest
-```
-
-Copy your config into the named volume before starting:
-
-```bash
-docker run --rm \
-  -v ckpool-config:/config \
-  -v /path/to/your/ckpool.conf:/src/ckpool.conf:ro \
-  debian:bookworm-slim \
-  cp /src/ckpool.conf /config/ckpool.conf
 ```
 
 ## Ports
@@ -196,9 +199,13 @@ services:
       - /srv/ckpool/config:/config
     ports:
       - "3333:3333"
+    environment:
+      - BTCSOLO=true
+      - BTC_RPC_URL=172.17.0.1:8332
+      - BTC_RPC_USER=rpcuser
+      - BTC_RPC_PASS=rpcpassword
+      - POOL_SIG=/FamilyPool/
 ```
-
-Set `btcd.url` in your config to the reachable address of Bitcoin Core (see [Connecting to Bitcoin Core](#connecting-to-bitcoin-core)).
 
 ### ckpool + Bitcoin Core together
 
@@ -226,12 +233,18 @@ services:
       - /srv/ckpool/config:/config
     ports:
       - "3333:3333"
+    environment:
+      - BTCSOLO=true
+      - BTC_RPC_URL=bitcoind:8332
+      - BTC_RPC_USER=rpcuser
+      - BTC_RPC_PASS=rpcpassword
+      - POOL_SIG=/FamilyPool/
 
 volumes:
   bitcoind-data:
 ```
 
-With this setup, use `"url": "bitcoind:8332"` in your `ckpool.conf` — Compose places both services on a shared network and the `bitcoind` hostname resolves automatically.
+Compose places both services on a shared network so `bitcoind` resolves as a hostname automatically.
 
 ## Logs
 
