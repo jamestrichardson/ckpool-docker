@@ -31,6 +31,7 @@ ARG S6_OVERLAY_VERSION="3.2.1.0"
 # TARGETARCH is set automatically by Docker BuildKit (amd64, arm64, arm, etc.)
 ARG TARGETARCH
 
+# Install runtime deps, download and verify s6-overlay, then clean up download tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     ca-certificates \
@@ -38,23 +39,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     wget \
     xz-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-# Map Docker's TARGETARCH to s6-overlay's archive naming and install
-RUN case "${TARGETARCH}" in \
-      amd64)   S6_ARCH="x86_64"  ;; \
-      arm64)   S6_ARCH="aarch64" ;; \
-      arm)     S6_ARCH="armhf"   ;; \
-      386)     S6_ARCH="i486"    ;; \
-      *)       S6_ARCH="${TARGETARCH}" ;; \
-    esac \
+    && rm -rf /var/lib/apt/lists/* \
+    && case "${TARGETARCH}" in \
+         amd64)   S6_ARCH="x86_64"  ;; \
+         arm64)   S6_ARCH="aarch64" ;; \
+         arm)     S6_ARCH="armhf"   ;; \
+         386)     S6_ARCH="i486"    ;; \
+         *)       S6_ARCH="${TARGETARCH}" ;; \
+       esac \
     && wget -q "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz" \
             -O /tmp/s6-overlay-noarch.tar.xz \
     && tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz \
     && wget -q "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_ARCH}.tar.xz" \
             -O /tmp/s6-overlay-${S6_ARCH}.tar.xz \
     && tar -C / -Jxpf /tmp/s6-overlay-${S6_ARCH}.tar.xz \
-    && rm -rf /tmp/s6-overlay-*.tar.xz
+    && rm -rf /tmp/s6-overlay-*.tar.xz \
+    && apt-get purge -y --auto-remove wget xz-utils \
+    && test -x /usr/bin/with-contenv || { echo "ERROR: s6-overlay noarch not installed correctly"; exit 1; } \
+    && test -x /command/s6-supervise   || { echo "ERROR: s6-overlay arch not installed correctly"; exit 1; }
 
 COPY --from=builder /app/bin/ckpool /app/bin/ckpool
 COPY --from=builder /app/bin/ckpmsg /app/bin/ckpmsg
